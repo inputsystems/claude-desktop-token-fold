@@ -4,9 +4,34 @@ A `PostToolUse` hook that folds noisy command output **automatically, in-band, i
 Claude desktop/web app** — no CLI wrapping, no proxy, no env hacking, no account risk.
 Lossless-first by design.
 
-It cuts ~40–85% of the tokens off noise-producing command output (installs, builds, test
-runs, large JSON), measured exactly across Claude and GPT tokenizers. See
-[Benchmarks](#benchmarks).
+It cuts tokens off noise-producing command output (installs, builds, test runs, large JSON) —
+**median ~71%, ranging 39–100% per command** — measured exactly across four Claude model
+families and GPT tokenizers. See [Benchmarks](#benchmarks).
+
+---
+
+## Quick start
+
+1. Drop [`fold-bash-output.py`](fold-bash-output.py) into `.claude/hooks/` in your project.
+2. Merge [`settings.example.json`](settings.example.json) into `.claude/settings.json`:
+
+   ```json
+   {
+     "env": { "FOLD_BASH_OUTPUT": "1" },
+     "hooks": {
+       "PostToolUse": [
+         { "matcher": "Bash", "hooks": [
+           { "type": "command",
+             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/fold-bash-output.py\"" } ] }
+       ]
+     }
+   }
+   ```
+
+3. Restart the app. Done — it now folds install/build/test/JSON spew automatically.
+   Set `FOLD_BASH_OUTPUT=0` to turn it off. No dependencies beyond Python 3.
+
+(Details, safety design, and benchmarks below.)
 
 ---
 
