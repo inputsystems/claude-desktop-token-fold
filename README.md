@@ -5,8 +5,8 @@ Claude desktop/web app** — no CLI wrapping, no proxy, no env hacking, no accou
 Lossless-first by design.
 
 It cuts tokens off noise-producing command output (installs, builds, test runs, large JSON) —
-**median ~71%, ranging 39–100% per command** — measured exactly across four Claude model
-families and GPT tokenizers. See [Benchmarks](#benchmarks).
+**median ~71%, ranging 39–100% per command** — measured exactly across all four Claude model
+families, including Fable 5. See [Benchmarks](#benchmarks).
 
 ---
 
@@ -124,27 +124,29 @@ changes need a restart.)
 ## Benchmarks
 
 `benchmark-fold.py` runs **synthetic** generic outputs (content is throwaway) through the real
-`transform()` and counts tokens before/after — by chars/lines (free, model-invariant) and, when
-available, exact tokens via `tiktoken` (GPT) and the Anthropic `count_tokens` API (Claude).
+`transform()` and counts tokens before/after — by chars/lines (free, model-invariant) and, with
+`--anthropic`, exact tokens across Claude model families via the `count_tokens` API.
 
 ```
-python3 benchmark-fold.py             # char proxy + tiktoken if installed
-python3 benchmark-fold.py --anthropic # also exact Claude across model families (needs ANTHROPIC_API_KEY)
+python3 benchmark-fold.py             # char/line proxy (no key)
+python3 benchmark-fold.py --anthropic # exact across Claude families incl. Fable 5
 ```
 
-Measured over **16 synthetic fixtures** and verified with exact `count_tokens` across four Claude
-model families plus `tiktoken` (GPT). Per-fixture char saving: **min 39%, median 71%, max 100%**.
+Measured over **16 synthetic fixtures** and verified with exact `count_tokens` across all four
+Claude model families — Opus 4.8, Sonnet 4.6, Haiku 4.5, and **Fable 5** (the flagship).
+Per-fixture char saving: **min 39%, median 71%, max 100%**.
 
-Representative line-removal folds (savings identical across every tokenizer):
+Representative line-removal folds (savings identical across every model). Columns are grouped by
+tokenizer family — Fable 5 and Opus 4.8 count identically, as do Sonnet 4.6 and Haiku 4.5:
 
-| Output | Opus 4.8 | Sonnet 4.6 | GPT-4o | chars | Saved |
-|---|---|---|---|---|---|
-| `npm install` | 15,954→2,621 | 11,145→1,834 | 9,533→1,560 | 31,108→5,142 | **84%** |
-| `pip install` (compile) | 11,464→1,859 | 9,243→1,490 | 7,834→1,261 | — | **84%** |
-| `yarn install` | 10,938→1,945 | 9,171→1,626 | 8,104→1,429 | — | **82%** |
-| `docker build` | 7,873→1,687 | 6,959→1,483 | 5,743→1,220 | — | **79%** |
-| `cargo build` | 3,794→1,153 | 3,565→1,074 | 2,893→870 | — | **70%** |
-| `pytest` (with failures) | 16,236→9,773 | 12,616→7,613 | 10,032→6,073 | — | **40%** |
+| Output | Fable 5 / Opus 4.8 | Sonnet 4.6 / Haiku 4.5 | chars | Saved |
+|---|---|---|---|---|
+| `npm install` | 15,954→2,621 | 11,145→1,834 | 31,108→5,142 | **84%** |
+| `pip install` (compile) | 11,464→1,859 | 9,243→1,490 | — | **84%** |
+| `yarn install` | 10,938→1,945 | 9,171→1,626 | — | **82%** |
+| `docker build` | 7,873→1,687 | 6,959→1,483 | — | **79%** |
+| `cargo build` | 3,794→1,153 | 3,565→1,074 | — | **70%** |
+| `pytest` (with failures) | 16,236→9,773 | 12,616→7,613 | — | **40%** |
 
 Three findings — including one we had to correct after the robust run:
 
@@ -153,9 +155,9 @@ Three findings — including one we had to correct after the robust run:
    same text. The gap is content-dependent: ~1.65× on prose, ~1.30× on URLs, ~1.19× on code,
    but **1.00× (identical)** on structured pretty-JSON and CSV.
 
-2. **Line-removal fold savings ARE model-invariant.** For installs/builds/test spew, every model +
-   both GPT tokenizers + raw chars agree within ~1 point. The free char proxy predicts these
-   accurately — no API key needed.
+2. **Line-removal fold savings ARE model-invariant.** For installs/builds/test spew, all four
+   Claude families (two distinct tokenizers) + raw chars agree within ~1 point. The free char
+   proxy predicts these accurately — no API key needed.
 
 3. **JSON-minify savings are NOT model-invariant** *(correction to an earlier claim)*. Because
    minification removes whitespace, and the two families tokenize whitespace differently,

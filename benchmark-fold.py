@@ -4,11 +4,12 @@ Offline benchmark for the Bash-output fold hook.
 
 Runs representative SYNTHETIC command outputs (we don't care about the content)
 through the hook's real classify()/fold() logic and reports how many tokens
-folding saves — by characters/lines (free, model-invariant) and, when the
-tokenizers are available, by exact token counts for GPT and Claude.
+folding saves — by characters/lines (free, model-invariant) and, with
+--anthropic, by exact token counts across Claude model families (Opus 4.8,
+Sonnet 4.6, Haiku 4.5, and Fable 5, the flagship) via the count_tokens API.
 
-  python3 .claude/hooks/benchmark-fold.py            # char proxy + tiktoken if present
-  python3 .claude/hooks/benchmark-fold.py --anthropic # also exact Claude via count_tokens API
+  python3 .claude/hooks/benchmark-fold.py            # char/line proxy (no key)
+  python3 .claude/hooks/benchmark-fold.py --anthropic # exact across Claude families
 
 No telemetry, no data at rest, no hook overhead. Repeatable anytime.
 
@@ -22,8 +23,8 @@ Three findings worth remembering:
      1.65x MORE tokens for the same text. Gap is content-dependent: ~1.65x prose,
      ~1.30x URLs, ~1.19x code, 1.00x (identical) on structured pretty-JSON/CSV.
   2. LINE-REMOVAL fold (installs/builds/tests) savings ARE model-invariant —
-     every model + both GPT tokenizers + chars within ~1 point (59-84%). The
-     free char proxy predicts these accurately.
+     every Claude family (two distinct tokenizers) + chars within ~1 point
+     (59-84%). The free char proxy predicts these accurately.
   3. JSON-MINIFY savings are NOT model-invariant (correction to an earlier
      claim). Whitespace removal saves Opus/Fable less (~29-38%) than chars /
      Sonnet / Haiku (~48-53%), because the families tokenize whitespace
@@ -233,17 +234,6 @@ def probe_samples():
 
 
 # --- tokenizers (graceful degradation) -------------------------------------
-def get_tiktoken():
-    try:
-        import tiktoken
-        return {
-            "GPT-4o/o-series (o200k)": tiktoken.get_encoding("o200k_base"),
-            "GPT-4/3.5 (cl100k)": tiktoken.get_encoding("cl100k_base"),
-        }
-    except Exception:
-        return {}
-
-
 def get_anthropic(models):
     """Return {label: count_fn} for each Claude model that count_tokens accepts."""
     if not models:
@@ -288,15 +278,12 @@ def main():
     args = ap.parse_args()
 
     hook = load_hook()
-    tk = get_tiktoken()
     models = [m.strip() for m in args.models.split(",") if m.strip()] if args.anthropic else []
     claude = get_anthropic(models)
 
     # accumulators
     tot = {"chars": [0, 0], "lines": [0, 0]}
     per_fixture_pct = []
-    for name in tk:
-        tot[name] = [0, 0]
     for name in claude:
         tot[name] = [0, 0]
 
@@ -325,8 +312,6 @@ def main():
 
         row("chars", len(text), len(out))
         row("lines", text.count("\n") + 1, out.count("\n") + 1)
-        for label, enc in tk.items():
-            row(label, len(enc.encode(text)), len(enc.encode(out)))
         for label, count in claude.items():
             row(label, count(text), count(out))
 
@@ -383,11 +368,9 @@ def main():
                   f"across {len(ratios)} diverse samples")
 
     print("\nNotes:")
-    if not tk:
-        print("  • tiktoken not installed -> GPT token columns omitted.")
-        print("    Install for exact GPT numbers:  pip install tiktoken")
     if not claude:
-        print("  • Claude exact omitted. Re-run with --anthropic (needs ANTHROPIC_API_KEY)")
+        print("  • Char/line proxy only. Re-run with --anthropic for exact token counts")
+        print("    across Claude families incl. Fable 5 (needs ANTHROPIC_API_KEY).")
     print("  • Line-removal fold (installs/builds/tests): savings ARE ~model-invariant.")
     print("  • JSON-minify (whitespace removal): savings VARY by family — Opus/Fable realize")
     print("    less (~29-38%) than chars/Sonnet/Haiku (~48-53%); whitespace tokenizes differently.")
